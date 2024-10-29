@@ -1,0 +1,6 @@
+numpy
+matplotlib
+torch
+fvcore
+iopath
+pytorch3d
