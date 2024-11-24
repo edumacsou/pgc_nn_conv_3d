@@ -1,3 +1,4 @@
 *.ply
 ./Modelos/*
 ./Modelos
+.ipynb_checkpoints/*
