@@ -2,3 +2,4 @@
 ./Modelos/*
 ./Modelos
 .ipynb_checkpoints/*
+/samples
