@@ -4,3 +4,4 @@ torch
 fvcore
 iopath
 pytorch3d
+plyfile
