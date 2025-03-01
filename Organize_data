@@ -1,0 +1,55 @@
+import itertools
+import os
+
+# Informações cronológicas (milhares de anos atrás)
+hominid_data = {
+    "sampled_australopithecus-afarensis-skull-cast.obj": 39,
+    "sampled_heidelbergensis_con_mandibula.obj": 6,
+    "sampled_homo-erectus-replica_flipped.obj": 18,
+    "sampled_homo-erectus-skull.obj": 18,
+    "sampled_homo-neanderthalensis-flipped.obj": 4,
+    "sampled_neanderthalensis.obj": 4,
+    "sampled_sapiens_con_mandibula.obj": 2
+}
+
+points_amount = 10000
+models_folder = f"/home/maciel/Documentos/Codes/TCC/pgc_nn_conv_3d/samples/sampled_models_{points_amount}"
+
+
+# Ordenar os arquivos pela idade dos hominídeos
+sorted_files = sorted(hominid_data.items(), key=lambda x: x[1], reverse=True)
+
+# Renomear os arquivos com um número no início para facilitar a listagem cronológica
+renamed_files = {}
+for i, (filename, age) in enumerate(sorted_files, 1):
+    new_filename = f"{i:02d}_{filename[8:]}"
+    renamed_files[filename] = new_filename
+
+
+# Gerar todas as combinações de crânios em ordem cronológica
+pairings = []
+for (older_file, older_age), (newer_file, newer_age) in itertools.combinations(sorted_files, 2):
+    time_difference = older_age - newer_age
+    if time_difference > 0 :
+        pairings.append((renamed_files[older_file], renamed_files[newer_file], time_difference, older_age, newer_age))
+
+# Criar os conjuntos X e Y
+X = [(pair[0], pair[1], pair[2]) for pair in pairings]
+Y = [1] * len(pairings)  # Placeholder, ajuste conforme a variável dependente do treinamento
+
+
+# Exibir os resultados
+print("Arquivos renomeados:")
+for file in os.listdir(models_folder):
+    if file in renamed_files:
+        os.rename(f"{models_folder}/{file}", f"{models_folder}/{renamed_files[file]}")
+        print(f"{file} -> {renamed_files[file]}")
+
+
+print("\nPares de treinamento:")
+for x in X:
+    print(x)
+# Save the pairings
+with open("pairings.txt", "w") as f:
+    for pair in pairings:
+        f.write(f"{pair[0]},{pair[1]},{pair[2]}\n")
