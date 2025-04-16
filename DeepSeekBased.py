@@ -1,113 +1,123 @@
 import os
+# os.environ["KERAS_BACKEND"] = "plaidml.keras.backend"
 import numpy as np
-import trimesh
-from mpl_toolkits.mplot3d import Axes3D
-from tensorflow.keras import layers, models, regularizers
-from typing import List, Tuple
 import matplotlib
-matplotlib.use('TkAgg')  # Ou 'Agg' se você não precisar de uma interface gráfica
+matplotlib.use('TkAgg')  # Or 'Agg' if you don't need a graphical interface
 import matplotlib.pyplot as plt
-from my_utils import load_data
+import tensorflow as tf
+from my_utils import load_data, MODELS_FOLDER, plot_3d_model
+from models import create_nn_v1, create_nn_v2, create_nn_v3, build_pointnet_cnn
+
+def main(model_creator):
+    # Load data
+    points_amount = 2000
+    X, Y = load_data(points_amount)
+
+    # Prepare the inputs
+    # X is a list of 19 elements, where each element is [vertices, deformation_amount]
+    vertices = np.array([x[0] for x in X])  # Shape: (19, 1000, 3)
+    deformation_amounts = np.array([x[1] for x in X]).reshape(-1, 1)  # Shape: (19, 1)
+
+    # Convert Y to a numpy array
+    Y = np.array(Y)  # Shape: (19, 1000, 3)
 
 
-# Função para visualizar modelos 3D
-def plot_3d_model(points: np.ndarray, title: str) -> None:
-    """
-    Plot a 3D model using matplotlib.
+    # Verificação dos dados
+    print("\n=== Verificação dos Dados ===")
+    print(f"Vértices: {vertices.shape}, Valores: {vertices.min():.2f} to {vertices.max():.2f}")
+    print(f"Deformação: {deformation_amounts.shape}, Valores: {deformation_amounts.min()} to {deformation_amounts.max()}")
+    print(f"Target Y: {Y.shape}, Valores: {Y.min():.2f} to {Y.max():.2f}")
 
-    Args:
-        points (np.ndarray): Array of points representing the 3D model.
-        title (str): Title of the plot.
-    """
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(points[:, 0], points[:, 1], points[:, 2], s=1)
-    ax.set_title(title)
-
-    # Definir a mesma escala para todos os eixos
-    max_range = np.array([points[:, 0].max() - points[:, 0].min(), 
-                          points[:, 1].max() - points[:, 1].min(), 
-                          points[:, 2].max() - points[:, 2].min()]).max() / 2.0
-
-    mid_x = (points[:, 0].max() + points[:, 0].min()) * 0.5
-    mid_y = (points[:, 1].max() + points[:, 1].min()) * 0.5
-    mid_z = (points[:, 2].max() + points[:, 2].min()) * 0.5
-
-    ax.set_xlim(mid_x - max_range, mid_x + max_range)
-    ax.set_ylim(mid_y - max_range, mid_y + max_range)
-    ax.set_zlim(mid_z - max_range, mid_z + max_range)
-
-    plt.show()
+        
+    # Verificação adicional dos dados
+    print("\n=== Estatísticas dos Dados ===")
+    print(f"Média vértices: {np.mean(vertices):.4f} ± {np.std(vertices):.4f}")
+    print(f"Média targets: {np.mean(Y):.4f} ± {np.std(Y):.4f}")
+    
+    # Callbacks adicionais
+    # early_stop = tf.keras.callbacks.EarlyStopping(
+    #     patience=13, 
+    #     restore_best_weights=True,
+    #     monitor='val_loss'
+    # )
+    
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
+        factor=0.5,
+        patience=5,
+        min_lr=1e-6
+    )
 
 
-
-####################################
-
-
-# # Caminho para a pasta com os modelos .obj
-# folder_path = "./samples"
-
-# # Carregar modelos
-# models = load_models_from_obj(folder_path)
-
-# Normalizar pontos (escolha um número fixo de pontos, por exemplo, 1000)
-points_amount = 1000
-# normalized_models = normalize_points(models, target_points)
-
-# Preparar X e Y
-# X, Y = prepare_data(normalized_models)
-
-# Definir o modelo da rede neural
-
-# def create_simple_nn(input_shape: Tuple[int, int]) -> models.Sequential:
-def create_simple_nn(input_shape) -> models.Sequential:
-    """
-    Create a simple neural network model.
-
-    Args:
-        input_shape (Tuple[int, int]): Shape of the input data.
-
-    Returns:
-        models.Sequential: Compiled neural network model.
-    """
-    model = models.Sequential([
-        layers.Input(shape=input_shape),
-        layers.Flatten(),
-        layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.01)),
-        layers.Dropout(0.5),
-        layers.Dense(64, activation='relu', kernel_regularizer=regularizers.l2(0.01)),
-        layers.Dropout(0.5),
-        layers.Dense(np.prod(input_shape), activation='linear'),
-        layers.Reshape(input_shape)
-    ])
-    return model
+    # Visualização dos dados brutos
+    plot_3d_model(vertices[0], "Input Sample")
+    plot_3d_model(Y[0], "Target Sample")
 
 
 
-# Criar e compilar o modelo
-input_shape = (points_amount, 3, 1)
-model = create_simple_nn(input_shape)
-model.compile(optimizer='adam', loss='mse')
+    # Create and compile the model
+    input_shape = (points_amount, 3)
+    model = model_creator(input_shape)
+    model.summary()  # <-- Mostra arquitetura
+
+    # Train the model
+    # hist = model.fit([vertices, deformation_amounts], Y, epochs=50, batch_size=1)
+        # Treinamento com mais épocas
+    hist = model.fit(
+        [vertices, deformation_amounts],
+        Y,
+        epochs=200,  # Aumentado
+        batch_size=4,
+        validation_split=0.2,
+        callbacks=[reduce_lr],
+        verbose=2
+    )
+
+    # Test the model
+    test_vertices = vertices[0:1]  # First skull's vertices
+    test_deformation = deformation_amounts[0:1]  # First skull's deformation amount
+    predicted_output = model.predict([test_vertices, test_deformation])
+
+    print("\n=== Predição ===")
+    print(f"Predição shape: {predicted_output[0].shape}")
+    print(f"Valores preditos: min={predicted_output[0].min():.2f}, max={predicted_output[0].max():.2f}")
+    print(f"Target real: min={Y[0].min():.2f}, max={Y[0].max():.2f}")
+    
 
 
-models_folder = f"/home/maciel/Documentos/Codes/TCC/pgc_nn_conv_3d/samples/sampled_models_{points_amount}"
+    ## Save trained model on MODEL_FOLDER
+    if not os.path.exists(os.path.join(MODELS_FOLDER,f"sampled_models_{points_amount}")):
+        os.makedirs(os.path.join(MODELS_FOLDER,f"sampled_models_{points_amount}"))
 
-X, Y = load_data(points_amount)
+    # Save the model to disk
+    model.save(os.path.join(MODELS_FOLDER,f"sampled_models_{points_amount}", f"trained_model_{points_amount}.keras"))
 
-print(X)
-print(Y)
-# Treinar o modelo
-model.fit(X, Y, epochs=50, validation_split=0.2)
+    # Save the model's architecture to disk
+    with open(os.path.join(MODELS_FOLDER,f"sampled_models_{points_amount}", f"trained_model_{points_amount}_architecture.json"), "w") as f:
+        f.write(model.to_json())
 
-# Testar o modelo
-test_input = X[0:1]  # Primeiro crânio como teste
-predicted_output = model.predict(test_input)
+    try:
+        # Save the model's loss to disk
+        with open(os.path.join(MODELS_FOLDER,f"sampled_models_{points_amount}", f"trained_model_{points_amount}_errors.txt"), "w") as f:
+            f.write(str(hist.history['loss']))
 
-# Visualizar o modelo de entrada
-plot_3d_model(test_input[0], "Input Model")
-plot_3d_model(Y[0:1][0], "Train Model")
+        # Visualize the loss
+        plt.plot(hist.history['loss'])
+        plt.title('Model Loss')
+        plt.ylabel('Loss')
+        plt.xlabel('Epoch')
+        plt.show()
+    except Exception as e:
+        print("Error: ",e)
 
-# Visualizar o modelo de saída (predição)
-plot_3d_model(predicted_output[0], "Predicted Output Model")
+    # Visualize the input model
+    # plot_3d_model(test_vertices[0], "Input Model")
+    # plot_3d_model(Y[0], "Train Model")
 
-# %%
+    # Visualize the predicted output model
+    plot_3d_model(predicted_output[0], "Predicted Output Model")
+
+if __name__ == "__main__":
+    main(create_nn_v1)
+    # main(create_nn_v2)
+    # main(create_nn_v3)
+    # main(build_pointnet_cnn)

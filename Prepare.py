@@ -2,13 +2,10 @@ import os
 import numpy as np
 import warnings
 import trimesh
-import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
 # from trimesh import Trimesh
 # from trimesh.viewer import SceneViewer
 import open3d as o3d
-from my_utils import load_mesh
+from my_utils import load_mesh, plot_3d_model
 
 # Suppress warnings from trimesh
 warnings.filterwarnings("ignore")
@@ -27,54 +24,7 @@ def normalize_points(points: np.ndarray) -> np.ndarray:
     return normalized_points
 
 
-def plot_3d_model(points: np.ndarray, title: str, save_path: str = None) -> None:
-    """
-    Plot a 3D model using matplotlib, ensuring it fits within a (1, 1, 1) cube.
-
-    Args:
-        points (np.ndarray): Array of points representing the 3D model.
-        title (str): Title of the plot.
-        save_path (str, optional): Path to save the plot image. If None, the plot is displayed.
-    """
-    fig = plt.figure(figsize=(10, 10))
-    views = {
-        "Isometrica": (35, 45, 120),
-        "Lateral": (87, -135, -45),
-        "Superior": (0, 90, 90),
-        "Frontal": (0, 0, 90)
-    }
-    
-    for i, (name, (elev, azim, roll)) in enumerate(views.items(), 1):
-        ax = fig.add_subplot(2, 2, i, projection='3d')
-        ax.scatter(points[:, 0], points[:, 1], points[:, 2], s=1)
-        ax.set_title(name)
-        
-        # Definir os limites dos eixos para garantir o cubo (1, 1, 1)
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.set_zlim(0, 1)
-
-        # Forçar a mesma escala nos eixos
-        ax.set_box_aspect([1, 1, 1])  # Aspecto do cubo
-
-        # Configurações adicionais para melhor visualização
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-
-        # Ajustar a visão para cada subplot
-        ax.view_init(elev=elev, azim=azim, roll=roll)
-    
-    plt.suptitle(title)
-    plt.tight_layout()
-    
-    if save_path:
-        filename = title.split(":")[-1].strip().replace(" ", "_") + ".png"
-        plt.savefig(f"{save_path + '/images'}/{filename}")
-    else:
-        plt.show()
-
-points_amount = 10000
+points_amount = 1000
 
 # Folder containing the .obj files
 input_folder = "/home/maciel/Documentos/Codes/TCC/pgc_nn_conv_3d/samples/public_models"
@@ -134,3 +84,4 @@ for filename in os.listdir(input_folder):
         print(f"Processed and saved: {filename}")
 
 print("All files processed.")
+
